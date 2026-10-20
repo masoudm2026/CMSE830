@@ -1,97 +1,109 @@
-"""
-Used-Car Price Explorer
-CMSE 830 Midterm Project
+st.caption(
+            "Correlation describes association, not causation. Other vehicle "
+            "characteristics may also help explain price."
+        )
 
-Run locally:
-    pip install -r requirements.txt
-    streamlit run app.py
-"""
+    st.subheader("Price distribution")
+    fig, ax = plt.subplots(figsize=(8, 3.8))
+    ax.hist(filtered["price"].dropna(), bins=20, edgecolor="white")
+    ax.set_xlabel("Price ($)")
+    ax.set_ylabel("Number of cars")
+    ax.set_title("Distribution of prices in the current selection")
+    ax.grid(axis="y", alpha=0.2)
+    fig.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
 
-from pathlib import Path
-from urllib.error import URLError
+with tab_makes:
+    st.subheader("How do prices vary by manufacturer?")
+    min_group_size = st.slider(
+        "Minimum number of cars per manufacturer",
+        min_value=1,
+        max_value=max(1, min(20, int(filtered["make"].value_counts().max()))),
+        value=2 if filtered["make"].value_counts().max() >= 2 else 1,
+    )
+    make_summary = (
+        filtered.groupby("make", observed=True)["price"]
+        .agg(count="count", median="median", mean="mean")
+        .query("count >= @min_group_size")
+        .sort_values("median", ascending=False)
+    )
 
-import matplotlib.pyplot as plt
-import pandas as pd
-import streamlit as st
-
-st.set_page_config(
-    page_title="Used-Car Price Explorer",
-    page_icon="🚗",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-# UCI Automobile / imports-85 data. A local CSV can be placed in data/automobile.csv.
-DATA_URL = "https://archive.ics.uci.edu/ml/machine-learning-databases/autos/imports-85.data"
-LOCAL_DATA_CANDIDATES = [
-    Path("data/automobile.csv"),
-    Path("automobile.csv"),
-]
-
-COLUMNS = [
-    "symboling", "normalized_losses", "make", "fuel_type", "aspiration",
-    "num_of_doors", "body_style", "drive_wheels", "engine_location",
-    "wheel_base", "length", "width", "height", "curb_weight", "engine_type",
-    "num_of_cylinders", "engine_size", "fuel_system", "bore", "stroke",
-    "compression_ratio", "horsepower", "peak_rpm", "city_mpg", "highway_mpg",
-    "price",
-]
-NUMERIC_COLUMNS = [
-    "symboling", "normalized_losses", "wheel_base", "length", "width", "height",
-    "curb_weight", "engine_size", "bore", "stroke", "compression_ratio",
-    "horsepower", "peak_rpm", "city_mpg", "highway_mpg", "price",
-]
-
-
-@st.cache_data(show_spinner="Loading the automobile dataset…")
-def load_data():
-    """Load from a local copy first, then try the public UCI source."""
-    local_path = next((p for p in LOCAL_DATA_CANDIDATES if p.exists()), None)
-    if local_path is not None:
-        data = pd.read_csv(local_path, names=COLUMNS, header=None, na_values="?")
-        source = f"local file ({local_path})"
+    if make_summary.empty:
+        st.info("No manufacturer meets that minimum group size.")
     else:
-        data = pd.read_csv(DATA_URL, names=COLUMNS, header=None, na_values="?")
-        source = "UCI Machine Learning Repository (downloaded at runtime)"
+        fig, ax = plt.subplots(figsize=(9, max(4, 0.35 * len(make_summary))))
+        ordered = make_summary.sort_values("median", ascending=True)
+        ax.barh(ordered.index.astype(str), ordered["median"])
+        ax.set_xlabel("Median price ($)")
+        ax.set_ylabel("Manufacturer")
+        ax.set_title("Median price by manufacturer")
+        ax.grid(axis="x", alpha=0.25)
+        fig.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
 
-    for col in NUMERIC_COLUMNS:
-        data[col] = pd.to_numeric(data[col], errors="coerce")
-    for col in ["make", "fuel_type", "aspiration", "num_of_doors", "body_style",
-                "drive_wheels", "engine_location", "engine_type", "num_of_cylinders",
-                "fuel_system"]:
-        data[col] = data[col].astype("string").str.strip()
+        display_summary = make_summary.copy()
+        display_summary["median"] = display_summary["median"].map(money)
+        display_summary["mean"] = display_summary["mean"].map(money)
+        st.dataframe(display_summary, use_container_width=True)
 
-    # Price is the outcome of interest; rows without price cannot support the plots.
-    data = data.dropna(subset=["price"]).copy()
-    data["make"] = data["make"].str.title()
-    return data, source
+        st.caption(
+            "Group sizes differ. A median based on a small number of cars "
+            "may be unstable and should be interpreted cautiously."
+        )
 
+with tab_quality:
+    st.subheader("Data quality checks")
+    total_rows = len(df)
+    missing_price = int(pd.to_numeric(df["price"], errors="coerce").isna().sum())
+    duplicate_rows = int(df.duplicated().sum())
+    missing_table = (
+        df.isna().sum()
+        .rename("Missing values")
+        .to_frame()
+    )
+    missing_table["Percent missing"] = (
+        100 * missing_table["Missing values"] / len(df)
+    ).round(1)
+    missing_table = missing_table[missing_table["Missing values"] > 0].sort_values(
+        "Missing values", ascending=False
+    )
 
-def money(value):
-    return f"${value:,.0f}" if pd.notna(value) else "—"
+    q1, q2, q3 = st.columns(3)
+    q1.metric("Rows retained after missing-price removal", f"{total_rows:,}")
+    q2.metric("Exact duplicate rows", f"{duplicate_rows:,}")
+    q3.metric("Missing price values after cleaning", f"{missing_price:,}")
 
+    st.markdown("**Missing values by column (before filtering)**")
+    if missing_table.empty:
+        st.write("No missing values were detected.")
+    else:
+        st.dataframe(missing_table, use_container_width=True)
 
-def correlation_text(series, feature_label):
-    corr = series.corr(series.index.to_series()) if False else None
-    # Placeholder intentionally avoided: correlation is computed from paired columns below.
-    return corr
+    st.markdown("**Important limitations**")
+    st.markdown(
+        """
+- **Historical data:** these automobiles are from an older era and do not represent today's used-car market.
+- **Missing values:** some variables, including normalized losses and engine specifications, have missing observations.
+- **Unequal group sizes:** some manufacturers and body styles have many more records than others.
+- **Potential confounding:** mileage, condition, accident history, maintenance, location, and current market demand are not represented.
+- **Association is not causation:** correlations do not show that a characteristic alone causes a higher or lower price.
+- **Price is not a modern valuation:** do not use these results to set a current listing price.
+"""
+    )
 
-
-st.title("🚗 Used-Car Price Explorer")
-st.caption("A data story for comparing automobile characteristics and prices in the UCI Automobile dataset.")
-
-st.markdown(
-    """
-    **Guiding question:** Which recorded vehicle characteristics tend to be associated with price?
-
-    Use the filters to compare a subset of cars. The dataset describes automobiles from an older era,
-    so treat the results as an exploration of historical patterns—not a current-market valuation tool.
-    """
+st.divider()
+st.caption(
+    "CMSE 830 Midterm Project · Used-Car Price Explorer · "
+    "Source: UCI Automobile dataset (imports-85)"
 )
 
-try:
-    df, data_source = load_data()
-except (Exception, URLError) as exc:
-    st.error("The dataset could not be loaded. Check your internet connection or place a CSV copy at `data/automobile.csv`.")
-    with st.expander("Technical details"):
-        
+# Offer a download of the currently filtered records.
+csv_bytes = filtered.to_csv(index=False).encode("utf-8")
+st.download_button(
+    "Download filtered records (CSV)",
+    data=csv_bytes,
+    file_name="used_car_filtered_data.csv",
+    mime="text/csv",
+)

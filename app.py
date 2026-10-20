@@ -1,3 +1,227 @@
+"""
+Used-Car Price Explorer
+CMSE 830 Midterm Project
+
+Run locally:
+    pip install -r requirements.txt
+    streamlit run app.py
+"""
+
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import pandas as pd
+import streamlit as st
+
+st.set_page_config(
+    page_title="Used-Car Price Explorer",
+    page_icon="🚗",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+DATA_URL = (
+    "https://archive.ics.uci.edu/ml/"
+    "machine-learning-databases/autos/imports-85.data"
+)
+LOCAL_DATA_CANDIDATES = [
+    Path("data/automobile.csv"),
+    Path("automobile.csv"),
+]
+
+COLUMNS = [
+    "symboling", "normalized_losses", "make", "fuel_type", "aspiration",
+    "num_of_doors", "body_style", "drive_wheels", "engine_location",
+    "wheel_base", "length", "width", "height", "curb_weight", "engine_type",
+    "num_of_cylinders", "engine_size", "fuel_system", "bore", "stroke",
+    "compression_ratio", "horsepower", "peak_rpm", "city_mpg", "highway_mpg",
+    "price",
+]
+NUMERIC_COLUMNS = [
+    "symboling", "normalized_losses", "wheel_base", "length", "width",
+    "height", "curb_weight", "engine_size", "bore", "stroke",
+    "compression_ratio", "horsepower", "peak_rpm", "city_mpg",
+    "highway_mpg", "price",
+]
+CATEGORICAL_COLUMNS = [
+    "make", "fuel_type", "aspiration", "num_of_doors", "body_style",
+    "drive_wheels", "engine_location", "engine_type", "num_of_cylinders",
+    "fuel_system",
+]
+
+
+@st.cache_data(show_spinner="Loading automobile data…")
+def load_data():
+    """Read a local data copy if available; otherwise download from UCI."""
+    local_path = next((p for p in LOCAL_DATA_CANDIDATES if p.exists()), None)
+    if local_path:
+        data = pd.read_csv(
+            local_path, names=COLUMNS, header=None, na_values="?"
+        )
+        source = f"Local file: {local_path}"
+    else:
+        data = pd.read_csv(
+            DATA_URL, names=COLUMNS, header=None, na_values="?"
+        )
+        source = "UCI Machine Learning Repository (downloaded at runtime)"
+
+    for col in NUMERIC_COLUMNS:
+        data[col] = pd.to_numeric(data[col], errors="coerce")
+    for col in CATEGORICAL_COLUMNS:
+        data[col] = data[col].astype("string").str.strip()
+
+    # Records without a price cannot be used in price comparisons.
+    data = data.dropna(subset=["price"]).copy()
+    data["make"] = data["make"].str.title()
+    return data, source
+
+
+def money(value):
+    return f"${value:,.0f}" if pd.notna(value) else "—"
+
+
+def correlation(x, y):
+    paired = pd.concat([x, y], axis=1).dropna()
+    if len(paired) < 2 or paired.iloc[:, 0].nunique() < 2:
+        return float("nan"), len(paired)
+    return paired.iloc[:, 0].corr(paired.iloc[:, 1]), len(paired)
+
+
+st.title("🚗 Used-Car Price Explorer")
+st.caption(
+    "An interactive exploration of vehicle characteristics and prices "
+    "in the UCI Automobile dataset."
+)
+st.markdown(
+    """
+**Guiding question:** Which recorded vehicle characteristics tend to be
+associated with automobile price?
+
+Use the filters to compare a subset of cars. These are historical automobile
+records, not current-market listings, so the results should not be used as
+today's price estimates.
+"""
+)
+
+try:
+    df, data_source = load_data()
+except Exception as exc:
+    st.error(
+        "The dataset could not be loaded. Check your internet connection, "
+        "or place a copy of the dataset at `data/automobile.csv`."
+    )
+    with st.expander("Technical details"):
+        st.code(str(exc))
+    st.stop()
+
+with st.sidebar:
+    st.header("Explore the data")
+    st.caption("Filters update the charts and summaries below.")
+
+    makes = sorted(df["make"].dropna().unique().tolist())
+    selected_makes = st.multiselect(
+        "Manufacturer",
+        options=makes,
+        default=makes,
+        help="Clear the selection to compare no manufacturers.",
+    )
+
+    body_styles = sorted(df["body_style"].dropna().unique().tolist())
+    selected_bodies = st.multiselect(
+        "Body style", options=body_styles, default=body_styles
+    )
+
+    fuel_types = sorted(df["fuel_type"].dropna().unique().tolist())
+    selected_fuels = st.multiselect(
+        "Fuel type", options=fuel_types, default=fuel_types
+    )
+
+    min_price = int(df["price"].min())
+    max_price = int(df["price"].max())
+    price_range = st.slider(
+        "Price range ($)",
+        min_value=min_price,
+        max_value=max_price,
+        value=(min_price, max_price),
+        step=100,
+    )
+
+filtered = df[
+    df["make"].isin(selected_makes)
+    & df["body_style"].isin(selected_bodies)
+    & df["fuel_type"].isin(selected_fuels)
+    & df["price"].between(price_range[0], price_range[1])
+].copy()
+
+st.caption(f"Data source: {data_source}")
+metric1, metric2, metric3, metric4 = st.columns(4)
+metric1.metric("Cars in selection", f"{len(filtered):,}")
+metric2.metric("Median price", money(filtered["price"].median()))
+metric3.metric("Mean price", money(filtered["price"].mean()))
+metric4.metric("Manufacturers", f"{filtered['make'].nunique():,}")
+
+if filtered.empty:
+    st.warning("No cars match these filters. Adjust the filters in the sidebar.")
+    st.stop()
+
+tab_overview, tab_makes, tab_quality = st.tabs(
+    ["Price relationships", "Manufacturer comparison", "Data quality & limits"]
+)
+
+with tab_overview:
+    st.subheader("How do vehicle characteristics relate to price?")
+    feature_options = {
+        "Horsepower": "horsepower",
+        "Engine size": "engine_size",
+        "Curb weight": "curb_weight",
+        "City fuel economy (MPG)": "city_mpg",
+        "Highway fuel economy (MPG)": "highway_mpg",
+    }
+    feature_label = st.selectbox(
+        "Choose a characteristic for the x-axis",
+        list(feature_options.keys()),
+        index=0,
+    )
+    feature = feature_options[feature_label]
+    plot_data = filtered[[feature, "price"]].dropna()
+    corr, n_pairs = correlation(plot_data[feature], plot_data["price"])
+
+    left, right = st.columns([2, 1])
+    with left:
+        fig, ax = plt.subplots(figsize=(8, 5))
+        ax.scatter(
+            plot_data[feature], plot_data["price"],
+            alpha=0.72, edgecolors="none"
+        )
+        ax.set_xlabel(feature_label)
+        ax.set_ylabel("Price ($)")
+        ax.set_title(f"{feature_label} vs. automobile price")
+        ax.grid(True, alpha=0.25)
+        fig.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    with right:
+        st.metric("Pearson correlation (r)", "N/A" if pd.isna(corr) else f"{corr:.2f}")
+        st.metric("Cars in this plot", f"{n_pairs:,}")
+        st.markdown("**How to read this**")
+        if pd.isna(corr):
+            st.write("There are not enough paired observations to calculate a correlation.")
+        elif corr >= 0.5:
+            st.write(
+                f"In this filtered subset, higher {feature_label.lower()} tends "
+                "to be associated with higher prices."
+            )
+        elif corr <= -0.5:
+            st.write(
+                f"In this filtered subset, higher {feature_label.lower()} tends "
+                "to be associated with lower prices."
+            )
+        else:
+            st.write(
+                f"The linear association between {feature_label.lower()} and "
+                "price is weak in this filtered subset."
+            )
         st.caption(
             "Correlation describes association, not causation. Other vehicle "
             "characteristics may also help explain price."
@@ -105,4 +329,5 @@ st.download_button(
     "Download filtered records (CSV)",
     data=csv_bytes,
     file_name="used_car_filtered_data.csv",
-    mime="text/csv",)
+    mime="text/csv",
+)

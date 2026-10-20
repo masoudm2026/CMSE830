@@ -1,4 +1,4 @@
-st.caption(
+        st.caption(
             "Correlation describes association, not causation. Other vehicle "
             "characteristics may also help explain price."
         )

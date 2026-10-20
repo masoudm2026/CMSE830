@@ -105,5 +105,4 @@ st.download_button(
     "Download filtered records (CSV)",
     data=csv_bytes,
     file_name="used_car_filtered_data.csv",
-    mime="text/csv",
-)
+    mime="text/csv",)

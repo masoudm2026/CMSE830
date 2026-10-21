@@ -66,4 +66,75 @@ Correlation describes association, not causation. Other vehicle characteristics 
 
 ## Limitations
 
-- The dataset
+- The dataset contains historical automobile records and does not represent today's used-car market.
+- Some variables contain missing observations.
+- Manufacturers have different numbers of records, which affects how confidently their price summaries can be compared.
+- Mileage, vehicle condition, accident history, maintenance, location, and current market demand are not represented.
+- Correlation does not establish causation.
+- Results should not be used as estimates of current used-car values.
+
+## Requirements
+
+- Python
+- Streamlit
+- pandas
+- Plotly
+
+## Installation and Setup
+
+### 1. Open the project folder
+
+Open a terminal in the project folder containing `app.py` and `requirements.txt`.
+
+### 2. Install the required packages
+
+Run this command:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+### 3. Start the application
+
+Run this command:
+
+```bash
+python -m streamlit run app.py --server.port 8503
+```
+
+### 4. Open the application in your browser
+
+While the application is running on your computer, open:
+
+http://localhost:8503
+
+**Note:** This is a local address that works on your own computer while the Streamlit application is running. It is not a public website link that other people can access over the internet.
+
+To stop the app, press `Ctrl+C` in the terminal.
+
+## Requirements File
+
+The `requirements.txt` file should contain:
+
+```text
+streamlit
+pandas
+plotly
+```
+
+These are the Python packages required by the application. If you update the app to use additional packages, update this file accordingly.
+
+## Project Files
+
+- `app.py` — Streamlit application, data loading, analysis, and charts.
+- `requirements.txt` — Python package dependencies.
+- `README.md` — Project overview, methods, limitations, and setup instructions.
+- `app_backup.py` — Local backup of the original application, kept for recovery.
+
+The backup file is for local recovery and is not required to run the application.
+
+## AI-Use Disclosure
+
+Generative AI tools, including ChatGPT, assisted with code troubleshooting. 
+
+This disclosure should be adjusted as needed to accurately reflect the assistance used and comply with course requirements.

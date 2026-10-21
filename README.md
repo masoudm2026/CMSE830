@@ -1,62 +1,33 @@
-
-# Used-Car Price Explorer
-
-**Course:** CMSE 830 — Foundations of Data Science  
-**Project question:** What factors are associated with used-car prices?
-
-## Project overview
-
-This Streamlit application explores associations between automobile prices
-and recorded vehicle characteristics, including horsepower, engine size,
-curb weight, fuel economy, and manufacturer.
-
-Users can filter the dataset and interact with charts and summary statistics.
-
-## Dataset
-
-Source: UCI Machine Learning Repository — Automobile dataset  
-https://archive.ics.uci.edu/ml/machine-learning-databases/autos/imports-85.data
-
-The dataset contains historical automobile records and should not be treated
-as a source of current used-car valuations.
-
-## Requirements
-
-- Python
-- Streamlit
-- pandas
-- Plotly
-
-## Run the application
-
+Used-Car Price Explorer
+Project Purpose
+This project explores characteristics associated with used-car prices.
+It is designed to help used-car buyers compare automobiles.
+Dataset
+The project uses the UCI Automobile dataset.
+Source: https://archive.ics.uci.edu/dataset/10/automobile
+Each row represents one automobile.
+Research Questions
+Is horsepower associated with used-car price?
+How do prices differ among manufacturers?
+Application Features
+Interactive manufacturer selection
+Scatter plot of horsepower versus price
+Price summary table by manufacturer
+Requirements
+Python
+Streamlit
+pandas
+Matplotlib
+How to Run
 Install the required packages:
-
-```bash
-python -m pip install -r requirements.txt
-```
-
-Start the app:
-
-```bash
-python -m streamlit run app.py --server.port 8503
-```
-
-Open http://localhost:8503 in your browser.
-
-## Data preparation
-
-- The dataset is loaded from the UCI source unless a supported local CSV
-  file is available.
-- The `?` symbol is interpreted as a missing value.
-- Numeric columns are converted to numeric types.
-- Records without a price are excluded from the price analysis.
-- Other missing values are not automatically imputed.
-
-## Limitations
-
-The data are historical and may not represent today's used-car market.
-Some variables contain missing values, manufacturer groups differ in size,
-and important factors such as mileage, vehicle condition, and accident
-history are not represented. Associations do not establish causation.
-
-
+pip install streamlit pandas matplotlib
+Run the application:
+streamlit run app.py
+Limitations
+The dataset is relatively small and contains missing values.
+The results show associations and do not prove causation.
+The dataset may not represent the entire used-car market.
+AI Use
+Generative AI assisted with code examples and explanations.
+I reviewed and tested the application and am responsible for
+understanding the submitted code.
